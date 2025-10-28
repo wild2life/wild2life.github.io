@@ -1,0 +1,74 @@
+name: GitHub Actions Build and Deploy
+
+# 触发条件: push 到 main 分支后
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [build-and-deploy]
+  push:
+    branches:
+      - main
+    # 只在下列路径变更时触发
+    paths:
+      - 'docs/**'
+      - 'package.json'
+
+# 设置权限
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# 设置上海时区
+env:
+  TZ: Asia/Shanghai
+
+# 任务
+jobs:
+  build-and-deploy:
+    # 服务器环境：最新版 ubuntu
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+    steps:
+      # 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 安装 pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      # 设置 node 版本
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      # 打包静态文件
+      - name: Run Script
+        env:
+          APP_BASE_PATH: /
+        run: pnpm install && pnpm run build
+
+      - name: Copy files
+        run: cp README.md ./dist/
+
+      # 部署到 gh-pages 分支
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          # 使用自动生成的 token
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 发布到 gh-pages 分支
+          publish_branch: gh-pages
+          # 静态文件所在目录
+          publish_dir: ./dist
+          # 强制推送（清理旧文件）
+          force_orphan: true
+          # 提交信息
+          commit_message: 'Deploy to GitHub Pages from @ ${{ github.sha }} 🚀'
